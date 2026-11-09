@@ -1,0 +1,102 @@
+{
+  "name": "03 - Relatorio de vendas e desempenho",
+  "nodes": [
+    {
+      "id": "n46-c20450",
+      "name": "Todo dia 21h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 21
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n47-4dc72e",
+      "name": "Shopee - vendas, itens e canais",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst shopee = async (query) => {\n  const appId = $env.SHOPEE_APP_ID, secret = $env.SHOPEE_SECRET;\n  if (!appId || !secret) throw new Error('Preencha SHOPEE_APP_ID e SHOPEE_SECRET no .env');\n  const ts = Math.floor(Date.now() / 1000);\n  const payload = JSON.stringify({ query });\n  const sig = crypto.createHash('sha256').update(appId + ts + payload + secret).digest('hex');\n  const res = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://open-api.affiliate.shopee.com.br/graphql',\n    headers: { 'Content-Type': 'application/json', 'Authorization': 'SHA256 Credential=' + appId + ', Timestamp=' + ts + ', Signature=' + sig },\n    body: payload, json: false,\n  });\n  const j = typeof res === 'string' ? JSON.parse(res) : res;\n  if (j.errors) throw new Error('Shopee API: ' + JSON.stringify(j.errors));\n  return j.data;\n};\nconst end = Math.floor(Date.now() / 1000), start7 = end - 7 * 86400, start1 = end - 86400;\nconst q = 'query { conversionReport(purchaseTimeStart: ' + start7 + ', purchaseTimeEnd: ' + end + ', limit: 500) { nodes { purchaseTime conversionStatus totalCommission netCommission utmContent orders { orderStatus items { itemId itemName qty itemTotalCommission } } } } }';\nconst d = await shopee(q);\nconst nodes = (d.conversionReport && d.conversionReport.nodes) || [];\nconst nm = { tg: 'Telegram', ig: 'Instagram', pin: 'Pinterest', tt: 'TikTok' };\nconst resumo = (lista) => ({ conv: lista.length, comm: lista.reduce((a, n) => a + parseFloat(n.totalCommission || 0), 0) });\nconst dia = nodes.filter(n => Number(n.purchaseTime) >= start1);\nconst canais = {}, itens = {};\nfor (const n of nodes) {\n  const partes = String(n.utmContent || '').split('-'); const c = nm[partes[partes.length - 1]] || 'Outros';\n  canais[c] = canais[c] || { conv: 0, comm: 0 }; canais[c].conv++; canais[c].comm += parseFloat(n.totalCommission || 0);\n  for (const o of (n.orders || [])) for (const it of (o.items || [])) {\n    const k = it.itemId; itens[k] = itens[k] || { nome: it.itemName, qtd: 0, comm: 0 };\n    itens[k].qtd += Number(it.qty || 1); itens[k].comm += parseFloat(it.itemTotalCommission || 0);\n  }\n}\nconst lista = Object.values(itens);\nconst topQtd = [...lista].sort((a, b) => b.qtd - a.qtd).slice(0, 5);\nconst topComm = [...lista].sort((a, b) => b.comm - a.comm).slice(0, 5);\nconst r1 = resumo(dia), r7 = resumo(nodes);\nconst linha = (i, x, v) => (i + 1) + '. ' + String(x.nome).slice(0, 45) + ' - ' + v;\nconst txt = 'RELATORIO SHOPEE AFILIADOS\\n\\nUltimas 24h: ' + r1.conv + ' vendas | R$ ' + r1.comm.toFixed(2) +\n  '\\nUltimos 7 dias: ' + r7.conv + ' vendas | R$ ' + r7.comm.toFixed(2) +\n  '\\n\\nPor canal (7 dias):\\n' + (Object.entries(canais).map(([k, v]) => '- ' + k + ': ' + v.conv + ' vendas, R$ ' + v.comm.toFixed(2)).join('\\n') || '- sem vendas') +\n  '\\n\\nMais vendidos (7 dias):\\n' + (topQtd.map((x, i) => linha(i, x, x.qtd + ' un')).join('\\n') || '-') +\n  '\\n\\nMais lucrativos (7 dias):\\n' + (topComm.map((x, i) => linha(i, x, 'R$ ' + x.comm.toFixed(2))).join('\\n') || '-') +\n  '\\n\\nCliques: veja em Shopee Afiliados > Relatorio de cliques (a API de vendas nao traz cliques).';\nreturn [{ json: { chat_id: $env.TELEGRAM_ADMIN_CHAT_ID, text: txt } }];"
+      }
+    },
+    {
+      "id": "n48-cc1f88",
+      "name": "Telegram - enviar relatorio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n49-c2eb0e",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -240
+      ],
+      "parameters": {
+        "content": "## 03 - Relatorio\nTodo dia 21h no seu Telegram: vendas 24h e 7 dias, por canal (subId), mais vendidos e mais lucrativos.\nSe a Shopee mudar algum campo, ajuste a query no no do meio.",
+        "width": 560,
+        "height": 150
+      }
+    }
+  ],
+  "connections": {
+    "Todo dia 21h": {
+      "main": [
+        [
+          {
+            "node": "Shopee - vendas, itens e canais",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shopee - vendas, itens e canais": {
+      "main": [
+        [
+          {
+            "node": "Telegram - enviar relatorio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {}
+}

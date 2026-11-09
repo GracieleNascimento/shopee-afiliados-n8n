@@ -1,0 +1,517 @@
+{
+  "id": "shopeeCanva05",
+  "name": "05 - Canva gerar arte",
+  "nodes": [
+    {
+      "id": "n17-7b1aa8",
+      "name": "Receber item",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n18-f080d3",
+      "name": "Preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const t = { ig: $env.CANVA_TEMPLATE_IG, pin: $env.CANVA_TEMPLATE_PIN, tt: $env.CANVA_TEMPLATE_TT }[$json.canal];\nreturn [{ json: { ...$json, templateId: t || '', canvaOn: ($env.CANVA_ENABLED === 'true' && !!t) ? 'sim' : 'nao' } }];"
+      }
+    },
+    {
+      "id": "n19-d52888",
+      "name": "Canva ligado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.canvaOn }}",
+              "operation": "equals",
+              "value2": "sim"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n20-8973b7",
+      "name": "Sem Canva - usar foto do produto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        300
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, artUrl: $json.imagem } }];"
+      }
+    },
+    {
+      "id": "n21-c02e15",
+      "name": "Canva - enviar foto do produto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.canva.com/rest/v1/url-asset-uploads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: 'shopee-' + $json.itemId, url: $json.imagem }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n22-30ef60",
+      "name": "Aguardar upload",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        -100
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 4,
+        "unit": "seconds"
+      },
+      "webhookId": "wd6ab013f"
+    },
+    {
+      "id": "n23-132b51",
+      "name": "Canva - status do upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        -100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.canva.com/rest/v1/url-asset-uploads/{{ $json.job.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {}
+      }
+    },
+    {
+      "id": "n24-4281a6",
+      "name": "Upload em andamento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1480,
+        -100
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.job.status }}",
+              "operation": "equals",
+              "value2": "in_progress"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n25-e2cad5",
+      "name": "Canva - preencher template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1740,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.canva.com/rest/v1/autofills",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ brand_template_id: $('Preparar').first().json.templateId, data: { titulo: { type: 'text', text: $('Preparar').first().json.titulo }, preco: { type: 'text', text: $('Preparar').first().json.precoTxt }, desconto: { type: 'text', text: $('Preparar').first().json.descTxt.trim() || ' ' }, foto: { type: 'image', asset_id: $json.job.asset.id } } }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n26-68c645",
+      "name": "Aguardar autofill",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        -100
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "webhookId": "w031ddb46"
+    },
+    {
+      "id": "n27-154d88",
+      "name": "Canva - status do autofill",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        -100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.canva.com/rest/v1/autofills/{{ $json.job.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {}
+      }
+    },
+    {
+      "id": "n28-d2abd1",
+      "name": "Autofill em andamento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2480,
+        -100
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.job.status }}",
+              "operation": "equals",
+              "value2": "in_progress"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n29-ecc6d8",
+      "name": "Canva - exportar JPG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2740,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.canva.com/rest/v1/exports",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ design_id: $json.job.result.design.id, format: { type: 'jpg', quality: 90 } }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n30-915682",
+      "name": "Aguardar exportacao",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3000,
+        -100
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "webhookId": "w2f0d4c22"
+    },
+    {
+      "id": "n31-13a0cf",
+      "name": "Canva - status da exportacao",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3240,
+        -100
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.canva.com/rest/v1/exports/{{ $json.job.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {}
+      }
+    },
+    {
+      "id": "n32-e6959c",
+      "name": "Exportacao em andamento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3480,
+        -100
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.job.status }}",
+              "operation": "equals",
+              "value2": "in_progress"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n33-ef8f58",
+      "name": "Resultado - URL da arte",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "const base = $('Preparar').first().json;\nconst urls = ($json.job && $json.job.urls) || [];\nif (!urls.length) throw new Error('Canva nao devolveu a arte: ' + JSON.stringify($json.job));\nreturn [{ json: { ...base, artUrl: urls[0] } }];"
+      }
+    },
+    {
+      "id": "n34-6f9b58",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -300
+      ],
+      "parameters": {
+        "content": "## 05 - Arte no Canva (sub-workflow)\nFluxo: envia a foto do produto ao Canva > preenche o template de marca (campos: titulo, preco, desconto, foto) > exporta JPG > devolve artUrl.\nSelecione SUA credencial OAuth2 do Canva nos 7 nos \"Canva - ...\". Se CANVA_ENABLED nao for true, usa a foto do produto.",
+        "width": 700,
+        "height": 200
+      }
+    }
+  ],
+  "connections": {
+    "Receber item": {
+      "main": [
+        [
+          {
+            "node": "Preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar": {
+      "main": [
+        [
+          {
+            "node": "Canva ligado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canva ligado?": {
+      "main": [
+        [
+          {
+            "node": "Canva - enviar foto do produto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem Canva - usar foto do produto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canva - enviar foto do produto": {
+      "main": [
+        [
+          {
+            "node": "Aguardar upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar upload": {
+      "main": [
+        [
+          {
+            "node": "Canva - status do upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canva - status do upload": {
+      "main": [
+        [
+          {
+            "node": "Upload em andamento?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload em andamento?": {
+      "main": [
+        [
+          {
+            "node": "Aguardar upload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Canva - preencher template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canva - preencher template": {
+      "main": [
+        [
+          {
+            "node": "Aguardar autofill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar autofill": {
+      "main": [
+        [
+          {
+            "node": "Canva - status do autofill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canva - status do autofill": {
+      "main": [
+        [
+          {
+            "node": "Autofill em andamento?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Autofill em andamento?": {
+      "main": [
+        [
+          {
+            "node": "Aguardar autofill",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Canva - exportar JPG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canva - exportar JPG": {
+      "main": [
+        [
+          {
+            "node": "Aguardar exportacao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar exportacao": {
+      "main": [
+        [
+          {
+            "node": "Canva - status da exportacao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canva - status da exportacao": {
+      "main": [
+        [
+          {
+            "node": "Exportacao em andamento?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exportacao em andamento?": {
+      "main": [
+        [
+          {
+            "node": "Aguardar exportacao",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resultado - URL da arte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {}
+}

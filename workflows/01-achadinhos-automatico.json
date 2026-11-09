@@ -1,0 +1,149 @@
+{
+  "name": "01 - Achadinhos Shopee (automatico)",
+  "nodes": [
+    {
+      "id": "n35-8f9138",
+      "name": "A cada 3 horas",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n36-bf72aa",
+      "name": "Teste manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n37-46e022",
+      "name": "Shopee - buscar ofertas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        100
+      ],
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst shopee = async (query) => {\n  const appId = $env.SHOPEE_APP_ID, secret = $env.SHOPEE_SECRET;\n  if (!appId || !secret) throw new Error('Preencha SHOPEE_APP_ID e SHOPEE_SECRET no .env');\n  const ts = Math.floor(Date.now() / 1000);\n  const payload = JSON.stringify({ query });\n  const sig = crypto.createHash('sha256').update(appId + ts + payload + secret).digest('hex');\n  const res = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://open-api.affiliate.shopee.com.br/graphql',\n    headers: { 'Content-Type': 'application/json', 'Authorization': 'SHA256 Credential=' + appId + ', Timestamp=' + ts + ', Signature=' + sig },\n    body: payload, json: false,\n  });\n  const j = typeof res === 'string' ? JSON.parse(res) : res;\n  if (j.errors) throw new Error('Shopee API: ' + JSON.stringify(j.errors));\n  return j.data;\n};\nconst norm = (n, kw) => {\n  let rate = parseFloat(n.commissionRate || 0); if (rate <= 1) rate = rate * 100;\n  return {\n    itemId: String(n.itemId), nome: n.productName, preco: parseFloat(n.priceMin || n.price || 0),\n    precoMax: parseFloat(n.priceMax || 0), desconto: Number(n.priceDiscountRate || 0), comissaoPct: rate,\n    vendas: Number(n.sales || 0), nota: parseFloat(n.ratingStar || 0), loja: n.shopName, imagem: n.imageUrl,\n    linkOriginal: n.productLink, linkOferta: n.offerLink, keyword: kw || '',\n  };\n};\nconst kws = ($env.SHOPEE_KEYWORDS || 'achadinhos').split(',').map(s => s.trim()).filter(Boolean);\nconst perRun = Math.min(parseInt($env.KEYWORDS_PER_RUN || '3'), kws.length);\nconst sd = $getWorkflowStaticData('global');\nlet idx = sd.kwIdx || 0;\nconst out = [];\nfor (let i = 0; i < perRun; i++) {\n  const kw = kws[(idx + i) % kws.length];\n  const q = 'query { productOfferV2(keyword: ' + JSON.stringify(kw) + ', sortType: 2, page: 1, limit: 30) { nodes { ' + 'itemId productName commissionRate commission price priceMin priceMax sales imageUrl shopName productLink offerLink ratingStar priceDiscountRate' + ' } } }';\n  const data = await shopee(q);\n  for (const n of (data.productOfferV2.nodes || [])) out.push({ json: norm(n, kw) });\n}\nsd.kwIdx = (idx + perRun) % kws.length;\nreturn out;"
+      }
+    },
+    {
+      "id": "n38-f83d40",
+      "name": "Filtrar, evitar repetidos e ranquear",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        100
+      ],
+      "parameters": {
+        "jsCode": "const sd = $getWorkflowStaticData('global');\nconst posted = new Set(sd.posted || []);\nconst minRating = parseFloat($env.MIN_RATING || '4.5'), minDisc = parseFloat($env.MIN_DISCOUNT || '10');\nconst minComm = parseFloat($env.MIN_COMMISSION_PCT || '5'), minSales = parseInt($env.MIN_SALES || '100');\nconst maxPrice = parseFloat($env.MAX_PRICE || '100000'), take = parseInt($env.POSTS_PER_RUN || '3');\nconst seen = new Set();\nconst ok = [];\nfor (const it of $input.all()) {\n  const p = it.json;\n  if (seen.has(p.itemId) || posted.has(p.itemId)) continue;\n  seen.add(p.itemId);\n  if (p.nota < minRating || p.desconto < minDisc || p.comissaoPct < minComm || p.vendas < minSales || p.preco > maxPrice || !p.imagem) continue;\n  p.score = p.comissaoPct * Math.log10(p.vendas + 10) * p.nota * (1 + p.desconto / 100);\n  ok.push(p);\n}\nok.sort((a, b) => b.score - a.score);\nconst pick = ok.slice(0, take);\nsd.posted = [...(sd.posted || []), ...pick.map(p => p.itemId)].slice(-2000);\nreturn pick.map(p => ({ json: p }));"
+      }
+    },
+    {
+      "id": "n39-d57de6",
+      "name": "Publicar em todos os canais (06)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        780,
+        100
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "shopeePublicar06",
+          "mode": "id"
+        },
+        "mode": "once",
+        "options": {}
+      }
+    },
+    {
+      "id": "n40-b37933",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -260
+      ],
+      "parameters": {
+        "content": "## 01 - Achadinhos automaticos\nA cada 3h: busca ofertas, filtra (nota, desconto, comissao, vendas), evita repetidos e entrega para o workflow 06, que cria texto + arte e publica em Telegram, Instagram, Pinterest e TikTok.\nAjustes: arquivo .env",
+        "width": 600,
+        "height": 200
+      }
+    }
+  ],
+  "connections": {
+    "Shopee - buscar ofertas": {
+      "main": [
+        [
+          {
+            "node": "Filtrar, evitar repetidos e ranquear",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar, evitar repetidos e ranquear": {
+      "main": [
+        [
+          {
+            "node": "Publicar em todos os canais (06)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "A cada 3 horas": {
+      "main": [
+        [
+          {
+            "node": "Shopee - buscar ofertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Teste manual": {
+      "main": [
+        [
+          {
+            "node": "Shopee - buscar ofertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {}
+}

@@ -1,0 +1,509 @@
+{
+  "id": "shopeePublicar06",
+  "name": "06 - Publicar em todos os canais",
+  "nodes": [
+    {
+      "id": "n1-f51c69",
+      "name": "Receber produtos",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "n2-6226a7",
+      "name": "Gemini - escrever legenda",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $env.GEMINI_MODEL || 'gemini-2.5-flash' }}:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{ parts: [{ text:\n    'Voce e uma ' + ($env.PERSONA || 'criadora de conteudo de achadinhos') + ' escrevendo um post curto para um canal de promocoes da Shopee (pt-BR). ' +\n    'Regras: tom animado e honesto; NAO invente caracteristicas que nao estao no nome do produto; NAO use urgencia falsa (\"ultimas unidades\"); NAO prometa resultados de saude/estetica. ' +\n    'Responda APENAS um JSON: {\"titulo\": \"ate 60 caracteres com 1 emoji\", \"destaque\": \"1 frase de ate 140 caracteres sobre por que vale a pena\", \"hashtags\": [\"4 a 6 hashtags sem espaco\"]}. ' +\n    'Produto: ' + $json.nome + ' | Preco: R$ ' + $json.preco + ' | Desconto: ' + $json.desconto + '% | Nota: ' + $json.nota + ' | Vendidos: ' + $json.vendas\n  }] }],\n  generationConfig: { responseMimeType: 'application/json', temperature: 0.9 }\n}) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 4000
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n3-d3cc6e",
+      "name": "Expandir por canal e gerar links",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst shopee = async (query) => {\n  const appId = $env.SHOPEE_APP_ID, secret = $env.SHOPEE_SECRET;\n  if (!appId || !secret) throw new Error('Preencha SHOPEE_APP_ID e SHOPEE_SECRET no .env');\n  const ts = Math.floor(Date.now() / 1000);\n  const payload = JSON.stringify({ query });\n  const sig = crypto.createHash('sha256').update(appId + ts + payload + secret).digest('hex');\n  const res = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://open-api.affiliate.shopee.com.br/graphql',\n    headers: { 'Content-Type': 'application/json', 'Authorization': 'SHA256 Credential=' + appId + ', Timestamp=' + ts + ', Signature=' + sig },\n    body: payload, json: false,\n  });\n  const j = typeof res === 'string' ? JSON.parse(res) : res;\n  if (j.errors) throw new Error('Shopee API: ' + JSON.stringify(j.errors));\n  return j.data;\n};\nconst esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst fmt = n => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });\nconst prods = $('Receber produtos').all(), gem = $input.all(), out = [];\nconst bio = $env.BIO_LINK || '', disc = $env.DISCLOSURE || '';\nfor (let i = 0; i < gem.length; i++) {\n  const p = prods[i].json; let g = {};\n  try { g = JSON.parse(gem[i].json.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim()); } catch (e) { g = {}; }\n  const titulo = g.titulo || p.nome.slice(0, 60), destaque = g.destaque || '';\n  const tags = (g.hashtags || ['#achadinhos', '#shopee']).map(t => '#' + String(t).replace(/^#/, '').replace(/\\s+/g, '')).join(' ');\n  const precoTxt = 'R$ ' + fmt(p.preco) + (p.precoMax > p.preco ? ' a R$ ' + fmt(p.precoMax) : '');\n  const descTxt = p.desconto ? ' (-' + Math.round(p.desconto) + '%)' : '';\n  for (const canal of ['tg', 'ig', 'pin', 'tt']) {\n    let link = p.linkOferta || p.linkOriginal;\n    try {\n      const q = 'mutation { generateShortLink(input: { originUrl: ' + JSON.stringify(p.linkOriginal) + ', subIds: [' + JSON.stringify($env.SUBID || 'n8n') + ', ' + JSON.stringify(canal) + '] }) { shortLink } }';\n      const d = await shopee(q);\n      if (d.generateShortLink && d.generateShortLink.shortLink) link = d.generateShortLink.shortLink;\n    } catch (e) { /* mantem offerLink */ }\n    const base = { canal, itemId: p.itemId, nome: p.nome, imagem: p.imagem, titulo, preco: p.preco, precoTxt, descTxt, link };\n    const stats = '\\u{1F4B0} ' + precoTxt + descTxt + '\\n\\u2B50 ' + p.nota.toFixed(1) + ' \\u2022 \\u{1F4E6} ' + p.vendas + ' vendidos';\n    if (canal === 'tg') {\n      let cap = '<b>' + esc(titulo) + '</b>\\n\\n' + (destaque ? esc(destaque) + '\\n\\n' : '') + stats + '\\n\\n\\u{1F6D2} Comprar: ' + link + '\\n\\n' + esc(tags) + '\\n\\n<i>' + esc(disc) + '</i>';\n      if (cap.length > 1020) cap = cap.slice(0, 1015) + '...';\n      out.push({ json: { ...base, chat_id: $env.TELEGRAM_CHAT_ID, photo: p.imagem, caption: cap, parse_mode: 'HTML' } });\n    } else if (canal === 'ig') {\n      out.push({ json: { ...base, caption: (titulo + '\\n\\n' + (destaque ? destaque + '\\n\\n' : '') + stats + '\\n\\n\\u{1F6D2} ' + (bio ? 'Link na bio ou aqui: ' : 'Link: ') + link + '\\n\\n' + tags + ' #shopee #achadinhos\\n\\n' + disc).slice(0, 2150) } });\n    } else if (canal === 'pin') {\n      out.push({ json: { ...base, pinTitle: titulo.slice(0, 100), pinDesc: (destaque + ' ' + precoTxt + descTxt + ' ' + tags + ' ' + disc).trim().slice(0, 490) } });\n    } else {\n      out.push({ json: { ...base, caption: (titulo + ' ' + precoTxt + descTxt + ' ' + tags + ' #shopee' + (bio ? ' Link na bio' : '')).slice(0, 2000) } });\n    }\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "n4-ab2d3c",
+      "name": "E Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        780,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.canal }}",
+              "operation": "equals",
+              "value2": "tg"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n5-1c4576",
+      "name": "Telegram - postar no canal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        -160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendPhoto",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, photo: $json.photo, caption: $json.caption, parse_mode: $json.parse_mode }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 30000
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n6-388a59",
+      "name": "Canva - gerar arte",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        120
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "shopeeCanva05",
+          "mode": "id"
+        },
+        "mode": "each",
+        "options": {}
+      }
+    },
+    {
+      "id": "n7-b31049",
+      "name": "E Instagram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        120
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.canal }}",
+              "operation": "equals",
+              "value2": "ig"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n8-a37194",
+      "name": "Instagram - criar midia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $env.IG_USER_ID }}/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.IG_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ image_url: $json.artUrl, caption: $json.caption }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n9-126c58",
+      "name": "Aguardar processamento IG",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1820,
+        0
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "webhookId": "wa5c24b6b"
+    },
+    {
+      "id": "n10-622fbd",
+      "name": "Instagram - publicar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2080,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $env.IG_USER_ID }}/media_publish",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.IG_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ creation_id: $json.id }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n11-a0dff5",
+      "name": "E Pinterest?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        240
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.canal }}",
+              "operation": "equals",
+              "value2": "pin"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n12-e6a01c",
+      "name": "Pinterest - criar pin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pinterest.com/v5/pins",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.PINTEREST_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ board_id: $env.PINTEREST_BOARD_ID, title: $json.pinTitle, description: $json.pinDesc, link: $json.link, media_source: { source_type: 'image_url', url: $json.artUrl } }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n13-8b9aaf",
+      "name": "TikTok - preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        340
+      ],
+      "parameters": {
+        "jsCode": "const p = $input.first().json;\nreturn [{ json: { ...p, chat_id: $env.TELEGRAM_ADMIN_CHAT_ID, photo: p.artUrl, parse_mode: '', caption: ('TIKTOK (postar manualmente)\\n\\n' + p.caption + '\\n\\nLink de afiliado: ' + p.link).slice(0, 1020) } }];"
+      }
+    },
+    {
+      "id": "n14-88655b",
+      "name": "TikTok - API (desativado)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2080,
+        340
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/content/init/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.TIKTOK_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ post_info: { title: $json.titulo.slice(0, 90), description: $json.caption, privacy_level: 'SELF_ONLY' }, source_info: { source: 'PULL_FROM_URL', photo_cover_index: 0, photo_images: [$json.artUrl] }, post_mode: 'DIRECT_POST', media_type: 'PHOTO' }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "disabled": true
+    },
+    {
+      "id": "n15-02f4c6",
+      "name": "Telegram - fila TikTok (manual)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2340,
+        340
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendPhoto",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('TikTok - preparar').first().json.chat_id, photo: $('TikTok - preparar').first().json.photo, caption: $('TikTok - preparar').first().json.caption }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n16-21a14d",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -260
+      ],
+      "parameters": {
+        "content": "## 06 - Publicar em todos os canais\nRecebe produtos ja filtrados. Gemini escreve o texto; para cada produto sao gerados 4 links (subId por canal: tg, ig, pin, tt). Telegram usa a foto do produto; Instagram, Pinterest e TikTok usam a arte do Canva (workflow 05).\nTikTok: por padrao cai na fila manual no seu Telegram (veja README).",
+        "width": 640,
+        "height": 200
+      }
+    }
+  ],
+  "connections": {
+    "Receber produtos": {
+      "main": [
+        [
+          {
+            "node": "Gemini - escrever legenda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini - escrever legenda": {
+      "main": [
+        [
+          {
+            "node": "Expandir por canal e gerar links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expandir por canal e gerar links": {
+      "main": [
+        [
+          {
+            "node": "E Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "E Telegram?": {
+      "main": [
+        [
+          {
+            "node": "Telegram - postar no canal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Canva - gerar arte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canva - gerar arte": {
+      "main": [
+        [
+          {
+            "node": "E Instagram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "E Instagram?": {
+      "main": [
+        [
+          {
+            "node": "Instagram - criar midia",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "E Pinterest?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram - criar midia": {
+      "main": [
+        [
+          {
+            "node": "Aguardar processamento IG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar processamento IG": {
+      "main": [
+        [
+          {
+            "node": "Instagram - publicar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "E Pinterest?": {
+      "main": [
+        [
+          {
+            "node": "Pinterest - criar pin",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok - preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok - preparar": {
+      "main": [
+        [
+          {
+            "node": "TikTok - API (desativado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok - API (desativado)": {
+      "main": [
+        [
+          {
+            "node": "Telegram - fila TikTok (manual)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {}
+}

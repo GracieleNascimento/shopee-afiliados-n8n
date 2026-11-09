@@ -1,0 +1,68 @@
+{
+  "name": "04 - Alerta de erro (Telegram)",
+  "nodes": [
+    {
+      "id": "n50-84adab",
+      "name": "Erro em workflow",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n51-af7a95",
+      "name": "Telegram - avisar erro",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_ADMIN_CHAT_ID, text: 'Erro no n8n: ' + $json.workflow.name + '\\n' + ($json.execution.error.message || '').slice(0, 500) }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n52-ab3301",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -200
+      ],
+      "parameters": {
+        "content": "## 04 - Alerta de erro\nEm cada workflow: Settings > Error workflow > escolha este.",
+        "width": 460,
+        "height": 110
+      }
+    }
+  ],
+  "connections": {
+    "Erro em workflow": {
+      "main": [
+        [
+          {
+            "node": "Telegram - avisar erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {}
+}
