@@ -2,7 +2,7 @@
   "name": "03 - Relatorio de vendas e desempenho",
   "nodes": [
     {
-      "id": "n46-c20450",
+      "id": "n49-bfc3a1",
       "name": "Todo dia 21h",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -23,7 +23,7 @@
       }
     },
     {
-      "id": "n47-4dc72e",
+      "id": "n50-181361",
       "name": "Shopee - vendas, itens e canais",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -36,7 +36,7 @@
       }
     },
     {
-      "id": "n48-cc1f88",
+      "id": "n51-b191c0",
       "name": "Telegram - enviar relatorio",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -54,7 +54,7 @@
       }
     },
     {
-      "id": "n49-c2eb0e",
+      "id": "n52-7b95ab",
       "name": "Nota",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,

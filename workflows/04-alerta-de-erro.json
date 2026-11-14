@@ -2,7 +2,7 @@
   "name": "04 - Alerta de erro (Telegram)",
   "nodes": [
     {
-      "id": "n50-84adab",
+      "id": "n53-4bd813",
       "name": "Erro em workflow",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
@@ -13,7 +13,7 @@
       "parameters": {}
     },
     {
-      "id": "n51-af7a95",
+      "id": "n54-e46a85",
       "name": "Telegram - avisar erro",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -31,7 +31,7 @@
       }
     },
     {
-      "id": "n52-ab3301",
+      "id": "n55-777afb",
       "name": "Nota",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,

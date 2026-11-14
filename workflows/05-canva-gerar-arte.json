@@ -3,7 +3,7 @@
   "name": "05 - Canva gerar arte",
   "nodes": [
     {
-      "id": "n17-7b1aa8",
+      "id": "n20-b95e20",
       "name": "Receber item",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -16,7 +16,7 @@
       }
     },
     {
-      "id": "n18-f080d3",
+      "id": "n21-3063d2",
       "name": "Preparar",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -29,7 +29,7 @@
       }
     },
     {
-      "id": "n19-d52888",
+      "id": "n22-59474f",
       "name": "Canva ligado?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
@@ -50,7 +50,7 @@
       }
     },
     {
-      "id": "n20-8973b7",
+      "id": "n23-bbccfd",
       "name": "Sem Canva - usar foto do produto",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -63,7 +63,7 @@
       }
     },
     {
-      "id": "n21-c02e15",
+      "id": "n24-f249ea",
       "name": "Canva - enviar foto do produto",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -83,7 +83,7 @@
       }
     },
     {
-      "id": "n22-30ef60",
+      "id": "n25-224f34",
       "name": "Aguardar upload",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
@@ -96,10 +96,10 @@
         "amount": 4,
         "unit": "seconds"
       },
-      "webhookId": "wd6ab013f"
+      "webhookId": "wa3bf2dd4"
     },
     {
-      "id": "n23-132b51",
+      "id": "n26-eed78a",
       "name": "Canva - status do upload",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -116,7 +116,7 @@
       }
     },
     {
-      "id": "n24-4281a6",
+      "id": "n27-f4c232",
       "name": "Upload em andamento?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
@@ -137,7 +137,7 @@
       }
     },
     {
-      "id": "n25-e2cad5",
+      "id": "n28-42432c",
       "name": "Canva - preencher template",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -157,7 +157,7 @@
       }
     },
     {
-      "id": "n26-68c645",
+      "id": "n29-89dfd5",
       "name": "Aguardar autofill",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
@@ -170,10 +170,10 @@
         "amount": 5,
         "unit": "seconds"
       },
-      "webhookId": "w031ddb46"
+      "webhookId": "w3b34f71b"
     },
     {
-      "id": "n27-154d88",
+      "id": "n30-be562a",
       "name": "Canva - status do autofill",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -190,7 +190,7 @@
       }
     },
     {
-      "id": "n28-d2abd1",
+      "id": "n31-5381c6",
       "name": "Autofill em andamento?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
@@ -211,7 +211,7 @@
       }
     },
     {
-      "id": "n29-ecc6d8",
+      "id": "n32-e96e1a",
       "name": "Canva - exportar JPG",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -231,7 +231,7 @@
       }
     },
     {
-      "id": "n30-915682",
+      "id": "n33-fef4a0",
       "name": "Aguardar exportacao",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
@@ -244,10 +244,10 @@
         "amount": 5,
         "unit": "seconds"
       },
-      "webhookId": "w2f0d4c22"
+      "webhookId": "w3d30c30f"
     },
     {
-      "id": "n31-13a0cf",
+      "id": "n34-978666",
       "name": "Canva - status da exportacao",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -264,7 +264,7 @@
       }
     },
     {
-      "id": "n32-e6959c",
+      "id": "n35-b47951",
       "name": "Exportacao em andamento?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
@@ -285,7 +285,7 @@
       }
     },
     {
-      "id": "n33-ef8f58",
+      "id": "n36-a1c0fb",
       "name": "Resultado - URL da arte",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -298,7 +298,7 @@
       }
     },
     {
-      "id": "n34-6f9b58",
+      "id": "n37-d619d3",
       "name": "Nota",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,

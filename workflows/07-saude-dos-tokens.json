@@ -1,0 +1,102 @@
+{
+  "name": "07 - Saude dos tokens (Instagram/Pinterest)",
+  "nodes": [
+    {
+      "id": "n56-8d9d14",
+      "name": "Todo dia 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n57-f6299e",
+      "name": "Verificar tokens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const alertas = [];\nconst dias = d => Math.ceil((new Date(d + 'T23:59:59') - new Date()) / 86400000);\nconst avisaData = (nome, d) => { if (!d) return; const n = dias(d); if (isNaN(n)) return; if (n <= 0) alertas.push(nome + ': token VENCIDO (' + d + ')'); else if (n <= 7) alertas.push(nome + ': token vence em ' + n + ' dia(s) (' + d + ')'); };\navisaData('Instagram', $env.IG_TOKEN_EXPIRES); avisaData('Pinterest', $env.PINTEREST_TOKEN_EXPIRES);\nif ($env.IG_ACCESS_TOKEN && $env.IG_USER_ID) {\n  try { await this.helpers.httpRequest({ method: 'GET', url: 'https://graph.facebook.com/v21.0/' + $env.IG_USER_ID, qs: { fields: 'id', access_token: $env.IG_ACCESS_TOKEN } }); }\n  catch (e) { alertas.push('Instagram: token/ID recusado pela API. Gere um novo token.'); }\n}\nif ($env.PINTEREST_ACCESS_TOKEN) {\n  try { await this.helpers.httpRequest({ method: 'GET', url: 'https://api.pinterest.com/v5/user_account', headers: { Authorization: 'Bearer ' + $env.PINTEREST_ACCESS_TOKEN } }); }\n  catch (e) { alertas.push('Pinterest: token recusado pela API. Gere um novo token.'); }\n}\nif (!alertas.length) return [];\nreturn [{ json: { chat_id: $env.TELEGRAM_ADMIN_CHAT_ID, text: 'ATENCAO - tokens das redes\\n\\n' + alertas.join('\\n') } }];"
+      }
+    },
+    {
+      "id": "n58-ab211b",
+      "name": "Telegram - avisar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n59-fabcad",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -220
+      ],
+      "parameters": {
+        "content": "## 07 - Saude dos tokens\nTodo dia 9h testa os tokens do Instagram e Pinterest e avisa no Telegram se vencerem em ate 7 dias (IG_TOKEN_EXPIRES / PINTEREST_TOKEN_EXPIRES no .env) ou forem recusados. So avisa quando ha problema.",
+        "width": 560,
+        "height": 150
+      }
+    }
+  ],
+  "connections": {
+    "Todo dia 9h": {
+      "main": [
+        [
+          {
+            "node": "Verificar tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar tokens": {
+      "main": [
+        [
+          {
+            "node": "Telegram - avisar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "pinData": {}
+}

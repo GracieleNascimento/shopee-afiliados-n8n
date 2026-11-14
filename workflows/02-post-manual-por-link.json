@@ -2,7 +2,7 @@
   "name": "02 - Post manual por link",
   "nodes": [
     {
-      "id": "n41-8e0ea9",
+      "id": "n44-21991c",
       "name": "Formulario - colar link",
       "type": "n8n-nodes-base.formTrigger",
       "typeVersion": 2.2,
@@ -26,7 +26,7 @@
       "webhookId": "shopee-post-manual"
     },
     {
-      "id": "n42-2ad400",
+      "id": "n45-a235be",
       "name": "Extrair ID do produto",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -39,7 +39,7 @@
       }
     },
     {
-      "id": "n43-de7d56",
+      "id": "n46-c7280a",
       "name": "Shopee - buscar produto",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -52,7 +52,7 @@
       }
     },
     {
-      "id": "n44-7c0c81",
+      "id": "n47-112cf6",
       "name": "Publicar em todos os canais (06)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -72,7 +72,7 @@
       }
     },
     {
-      "id": "n45-c8c026",
+      "id": "n48-052f49",
       "name": "Nota",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,

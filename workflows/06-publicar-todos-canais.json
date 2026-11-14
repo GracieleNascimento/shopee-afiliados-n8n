@@ -3,7 +3,7 @@
   "name": "06 - Publicar em todos os canais",
   "nodes": [
     {
-      "id": "n1-f51c69",
+      "id": "n1-6da4c3",
       "name": "Receber produtos",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -16,7 +16,7 @@
       }
     },
     {
-      "id": "n2-6226a7",
+      "id": "n2-4493d8",
       "name": "Gemini - escrever legenda",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -51,7 +51,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n3-d3cc6e",
+      "id": "n3-9accf7",
       "name": "Expandir por canal e gerar links",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -64,7 +64,67 @@
       }
     },
     {
-      "id": "n4-ab2d3c",
+      "id": "n16-f19565",
+      "name": "Modo teste?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        780,
+        -300
+      ],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $env.DRY_RUN === 'true' ? 'sim' : 'nao' }}",
+              "operation": "equals",
+              "value2": "sim"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n17-304e02",
+      "name": "Montar previa (teste)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        -420
+      ],
+      "parameters": {
+        "jsCode": "const p = $json;\nlet t = '[TESTE - ' + p.canal.toUpperCase() + ']\\n' + (p.caption || (p.pinTitle + '\\n' + p.pinDesc));\nt = t.replace(/<[^>]+>/g, '').slice(0, 900) + '\\n\\nLink: ' + p.link;\nreturn [{ json: { chat_id: $env.TELEGRAM_ADMIN_CHAT_ID, photo: p.imagem, caption: t } }];"
+      }
+    },
+    {
+      "id": "n18-0b35b1",
+      "name": "Telegram - previa (modo teste)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        -420
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendPhoto",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, photo: $json.photo, caption: $json.caption }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1000
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n4-fe7892",
       "name": "E Telegram?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
@@ -85,7 +145,7 @@
       }
     },
     {
-      "id": "n5-1c4576",
+      "id": "n5-d2b1bf",
       "name": "Telegram - postar no canal",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -111,7 +171,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n6-388a59",
+      "id": "n6-d8cfe9",
       "name": "Canva - gerar arte",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -131,7 +191,7 @@
       }
     },
     {
-      "id": "n7-b31049",
+      "id": "n7-acc6b7",
       "name": "E Instagram?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
@@ -152,7 +212,7 @@
       }
     },
     {
-      "id": "n8-a37194",
+      "id": "n8-305be6",
       "name": "Instagram - criar midia",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -180,7 +240,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n9-126c58",
+      "id": "n9-73f9b1",
       "name": "Aguardar processamento IG",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
@@ -193,10 +253,10 @@
         "amount": 10,
         "unit": "seconds"
       },
-      "webhookId": "wa5c24b6b"
+      "webhookId": "wbf14e447"
     },
     {
-      "id": "n10-622fbd",
+      "id": "n10-05357f",
       "name": "Instagram - publicar",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -224,7 +284,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n11-a0dff5",
+      "id": "n11-c8dd61",
       "name": "E Pinterest?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
@@ -245,7 +305,7 @@
       }
     },
     {
-      "id": "n12-e6a01c",
+      "id": "n12-e6c9c6",
       "name": "Pinterest - criar pin",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -273,7 +333,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n13-8b9aaf",
+      "id": "n13-71f9a4",
       "name": "TikTok - preparar",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -286,7 +346,7 @@
       }
     },
     {
-      "id": "n14-88655b",
+      "id": "n14-b880ec",
       "name": "TikTok - API (desativado)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -315,7 +375,7 @@
       "disabled": true
     },
     {
-      "id": "n15-02f4c6",
+      "id": "n15-be5cfc",
       "name": "Telegram - fila TikTok (manual)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -341,7 +401,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n16-21a14d",
+      "id": "n19-d09e67",
       "name": "Nota",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -383,7 +443,36 @@
       "main": [
         [
           {
+            "node": "Modo teste?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Modo teste?": {
+      "main": [
+        [
+          {
+            "node": "Montar previa (teste)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "E Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar previa (teste)": {
+      "main": [
+        [
+          {
+            "node": "Telegram - previa (modo teste)",
             "type": "main",
             "index": 0
           }

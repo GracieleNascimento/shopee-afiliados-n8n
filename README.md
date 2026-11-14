@@ -8,6 +8,7 @@
 | 03 Relatório | 21h no seu Telegram: vendas 24h/7 dias, por canal, mais vendidos e mais lucrativos |
 | 04 Alerta de erro | Avisa no seu Telegram quando algum workflow falhar |
 | 05 Canva gerar arte | Sub-workflow: foto do produto > template Canva > JPG pronto |
+| 07 Saúde dos tokens | 9h: avisa no Telegram se o token do Instagram/Pinterest vence em até 7 dias ou foi recusado |
 | 06 Publicar em todos os canais | Gemini escreve o texto, gera 1 link por canal e publica em Telegram, Instagram, Pinterest e TikTok |
 
 Cada canal usa um subId no link (tg, ig, pin, tt): é assim que o relatório sabe qual canal vendeu.
@@ -33,15 +34,15 @@ Cada canal usa um subId no link (tg, ig, pin, tt): é assim que o relatório sab
    ```
    docker compose up -d
    ```
-4. Abra http://localhost:5678, crie o usuário dono. Os 6 workflows já estarão importados (inativos).
-5. Teste: abra o 01, clique em **Teste manual** (Execute workflow). Confira o post no canal.
-6. Ative (toggle) os workflows 01, 02, 03 e 04 (05 e 06 são chamados pelos outros e não precisam de toggle). Em 01, 02 e 03: Settings > Error workflow > "04 - Alerta de erro".
+4. Abra http://localhost:5678, crie o usuário dono. Os 7 workflows já estarão importados (inativos).
+5. Teste: com `DRY_RUN=true` (padrão) abra o 01 e clique em **Teste manual**. Nada é publicado: você recebe no Telegram pessoal uma prévia de cada post (Telegram, Instagram, Pinterest, TikTok). Quando estiver boa, ponha `DRY_RUN=false` no `.env` e rode `docker compose up -d`.
+6. Ative (toggle) os workflows 01, 02, 03, 04 e 07 (05 e 06 são chamados pelos outros e não precisam de toggle). Em 01, 02 e 03: Settings > Error workflow > "04 - Alerta de erro".
 7. Ajustes de curadoria (palavras-chave, mínimos, quantos posts por rodada): edite `.env` e rode `docker compose up -d` de novo.
 
 ## Pontos de atenção
 - **Não foi testado contra a API real** (não tenho suas chaves). Se a Shopee recusar algum campo, o erro aparece no nó com a mensagem da API; corrija a query no nó "Shopee - buscar ofertas" usando o playground da Shopee. O mais provável de ajustar é o relatório (workflow 03).
 - A API de afiliados só devolve produtos do programa; link de produto fora dele dá erro no workflow 02.
-- Repetidos: a lista de já postados só é gravada com o workflow **ativo** (execução manual não grava).
+- Repetidos: a lista de já postados fica em arquivo no volume do n8n (`posted.json`), vale também para execução manual, exceto em modo teste. Se o Code node não conseguir gravar arquivo, usa só a memória do workflow ativo.
 - Mantive o aviso de afiliado e sem urgência falsa nas legendas, por regras da Shopee e das plataformas.
 - WhatsApp: não incluído; dá para acrescentar depois um nó no workflow 06.
 - Instagram, Pinterest e Canva também não foram testados com contas reais: no primeiro teste, rode o 02 com um produto e confira cada canal.

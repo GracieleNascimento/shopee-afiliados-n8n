@@ -51,7 +51,11 @@ sd.kwIdx = (idx + perRun) % kws.length;
 return out;`;
 
 const CODE_FILTRAR = `const sd = $getWorkflowStaticData('global');
-const posted = new Set(sd.posted || []);
+let fs = null; try { fs = require('fs'); } catch (e) { fs = null; }
+const FILE = '/home/node/.n8n/posted.json';
+let filePosted = []; try { filePosted = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { filePosted = []; }
+const posted = new Set([...(sd.posted || []), ...filePosted]);
+const dry = $env.DRY_RUN === 'true';
 const minRating = parseFloat($env.MIN_RATING || '4.5'), minDisc = parseFloat($env.MIN_DISCOUNT || '10');
 const minComm = parseFloat($env.MIN_COMMISSION_PCT || '5'), minSales = parseInt($env.MIN_SALES || '100');
 const maxPrice = parseFloat($env.MAX_PRICE || '100000'), take = parseInt($env.POSTS_PER_RUN || '3');
@@ -67,7 +71,11 @@ for (const it of $input.all()) {
 }
 ok.sort((a, b) => b.score - a.score);
 const pick = ok.slice(0, take);
-sd.posted = [...(sd.posted || []), ...pick.map(p => p.itemId)].slice(-2000);
+if (!dry) {
+  const all = [...new Set([...(sd.posted || []), ...filePosted, ...pick.map(p => p.itemId)])].slice(-2000);
+  sd.posted = all;
+  try { fs.writeFileSync(FILE, JSON.stringify(all)); } catch (e) { /* sem fs: usa so o static data */ }
+}
 return pick.map(p => ({ json: p }));`;
 
 const CODE_LINK = SHOPEE_FN + `
@@ -228,9 +236,17 @@ return [{ json: { ...p, chat_id: $env.TELEGRAM_ADMIN_CHAT_ID, photo: p.artUrl, p
   ttApi.disabled = true;
   const ttTg = telegram([2340, 340], 1000, 'Telegram - fila TikTok (manual)');
   ttTg.parameters.jsonBody = "={{ JSON.stringify({ chat_id: $('TikTok - preparar').first().json.chat_id, photo: $('TikTok - preparar').first().json.photo, caption: $('TikTok - preparar').first().json.caption }) }}";
-  const nodes = [trig, g, expand, ifTg, tg, canva, ifIg, igCria, igWait, igPub, ifPin, pin, ttPrep, ttApi, ttTg,
+  const ifDry = ifn('Modo teste?', [780, -300], "={{ $env.DRY_RUN === 'true' ? 'sim' : 'nao' }}", 'sim');
+  const prevCode = code('Montar previa (teste)', [1040, -420], `const p = $json;
+let t = '[TESTE - ' + p.canal.toUpperCase() + ']\\n' + (p.caption || (p.pinTitle + '\\n' + p.pinDesc));
+t = t.replace(/<[^>]+>/g, '').slice(0, 900) + '\\n\\nLink: ' + p.link;
+return [{ json: { chat_id: $env.TELEGRAM_ADMIN_CHAT_ID, photo: p.imagem, caption: t } }];`);
+  const prevTg = telegram([1300, -420], 1000, 'Telegram - previa (modo teste)');
+  prevTg.parameters.jsonBody = '={{ JSON.stringify({ chat_id: $json.chat_id, photo: $json.photo, caption: $json.caption }) }}';
+  const nodes = [trig, g, expand, ifDry, prevCode, prevTg, ifTg, tg, canva, ifIg, igCria, igWait, igPub, ifPin, pin, ttPrep, ttApi, ttTg,
     note([-20, -260], '## 06 - Publicar em todos os canais\nRecebe produtos ja filtrados. Gemini escreve o texto; para cada produto sao gerados 4 links (subId por canal: tg, ig, pin, tt). Telegram usa a foto do produto; Instagram, Pinterest e TikTok usam a arte do Canva (workflow 05).\nTikTok: por padrao cai na fila manual no seu Telegram (veja README).', 640, 200)];
-  const c = chain([trig, g, expand, ifTg]);
+  const c = chain([trig, g, expand, ifDry]);
+  link2(c, ifDry, prevCode, 0); link2(c, prevCode, prevTg); link2(c, ifDry, ifTg, 1);
   link2(c, ifTg, tg, 0); link2(c, ifTg, canva, 1); link2(c, canva, ifIg);
   link2(c, ifIg, igCria, 0); link2(c, igCria, igWait); link2(c, igWait, igPub);
   link2(c, ifIg, ifPin, 1); link2(c, ifPin, pin, 0); link2(c, ifPin, ttPrep, 1);
@@ -364,5 +380,28 @@ return [{ json: { chat_id: $env.TELEGRAM_ADMIN_CHAT_ID, text: txt } }];`);
     jsonBody: "={{ JSON.stringify({ chat_id: $env.TELEGRAM_ADMIN_CHAT_ID, text: 'Erro no n8n: ' + $json.workflow.name + '\\n' + ($json.execution.error.message || '').slice(0, 500) }) }}", options: {},
   });
   save('04-alerta-de-erro.json', '04 - Alerta de erro (Telegram)', [err, tg, note([-20, -200], '## 04 - Alerta de erro\nEm cada workflow: Settings > Error workflow > escolha este.', 460, 110)], chain([err, tg]));
+}
+// ---------- WF 07: saude dos tokens ----------
+{
+  const sched = mk('Todo dia 9h', 'n8n-nodes-base.scheduleTrigger', 1.2, [0, 0], { rule: { interval: [{ field: 'days', daysInterval: 1, triggerAtHour: 9 }] } });
+  const chk = code('Verificar tokens', [260, 0], `const alertas = [];
+const dias = d => Math.ceil((new Date(d + 'T23:59:59') - new Date()) / 86400000);
+const avisaData = (nome, d) => { if (!d) return; const n = dias(d); if (isNaN(n)) return; if (n <= 0) alertas.push(nome + ': token VENCIDO (' + d + ')'); else if (n <= 7) alertas.push(nome + ': token vence em ' + n + ' dia(s) (' + d + ')'); };
+avisaData('Instagram', $env.IG_TOKEN_EXPIRES); avisaData('Pinterest', $env.PINTEREST_TOKEN_EXPIRES);
+if ($env.IG_ACCESS_TOKEN && $env.IG_USER_ID) {
+  try { await this.helpers.httpRequest({ method: 'GET', url: 'https://graph.facebook.com/v21.0/' + $env.IG_USER_ID, qs: { fields: 'id', access_token: $env.IG_ACCESS_TOKEN } }); }
+  catch (e) { alertas.push('Instagram: token/ID recusado pela API. Gere um novo token.'); }
+}
+if ($env.PINTEREST_ACCESS_TOKEN) {
+  try { await this.helpers.httpRequest({ method: 'GET', url: 'https://api.pinterest.com/v5/user_account', headers: { Authorization: 'Bearer ' + $env.PINTEREST_ACCESS_TOKEN } }); }
+  catch (e) { alertas.push('Pinterest: token recusado pela API. Gere um novo token.'); }
+}
+if (!alertas.length) return [];
+return [{ json: { chat_id: $env.TELEGRAM_ADMIN_CHAT_ID, text: 'ATENCAO - tokens das redes\\n\\n' + alertas.join('\\n') } }];`);
+  const tg = mk('Telegram - avisar', 'n8n-nodes-base.httpRequest', 4.2, [520, 0], {
+    method: 'POST', url: '=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage',
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}', options: {},
+  });
+  save('07-saude-dos-tokens.json', '07 - Saude dos tokens (Instagram/Pinterest)', [sched, chk, tg, note([-20, -220], '## 07 - Saude dos tokens\nTodo dia 9h testa os tokens do Instagram e Pinterest e avisa no Telegram se vencerem em ate 7 dias (IG_TOKEN_EXPIRES / PINTEREST_TOKEN_EXPIRES no .env) ou forem recusados. So avisa quando ha problema.', 560, 150)], chain([sched, chk, tg]));
 }
 console.log('ok');

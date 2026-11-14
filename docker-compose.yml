@@ -22,7 +22,7 @@ services:
       - TZ=America/Sao_Paulo
       - N8N_SECURE_COOKIE=false
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
-      - NODE_FUNCTION_ALLOW_BUILTIN=crypto
+      - NODE_FUNCTION_ALLOW_BUILTIN=crypto,fs
       - N8N_RUNNERS_ENABLED=true
     volumes:
       - n8n_data:/home/node/.n8n

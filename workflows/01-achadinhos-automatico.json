@@ -2,7 +2,7 @@
   "name": "01 - Achadinhos Shopee (automatico)",
   "nodes": [
     {
-      "id": "n35-8f9138",
+      "id": "n38-a05151",
       "name": "A cada 3 horas",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "n36-bf72aa",
+      "id": "n39-e1f56b",
       "name": "Teste manual",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -33,7 +33,7 @@
       "parameters": {}
     },
     {
-      "id": "n37-46e022",
+      "id": "n40-fa167d",
       "name": "Shopee - buscar ofertas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "n38-f83d40",
+      "id": "n41-6ef744",
       "name": "Filtrar, evitar repetidos e ranquear",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -55,11 +55,11 @@
         100
       ],
       "parameters": {
-        "jsCode": "const sd = $getWorkflowStaticData('global');\nconst posted = new Set(sd.posted || []);\nconst minRating = parseFloat($env.MIN_RATING || '4.5'), minDisc = parseFloat($env.MIN_DISCOUNT || '10');\nconst minComm = parseFloat($env.MIN_COMMISSION_PCT || '5'), minSales = parseInt($env.MIN_SALES || '100');\nconst maxPrice = parseFloat($env.MAX_PRICE || '100000'), take = parseInt($env.POSTS_PER_RUN || '3');\nconst seen = new Set();\nconst ok = [];\nfor (const it of $input.all()) {\n  const p = it.json;\n  if (seen.has(p.itemId) || posted.has(p.itemId)) continue;\n  seen.add(p.itemId);\n  if (p.nota < minRating || p.desconto < minDisc || p.comissaoPct < minComm || p.vendas < minSales || p.preco > maxPrice || !p.imagem) continue;\n  p.score = p.comissaoPct * Math.log10(p.vendas + 10) * p.nota * (1 + p.desconto / 100);\n  ok.push(p);\n}\nok.sort((a, b) => b.score - a.score);\nconst pick = ok.slice(0, take);\nsd.posted = [...(sd.posted || []), ...pick.map(p => p.itemId)].slice(-2000);\nreturn pick.map(p => ({ json: p }));"
+        "jsCode": "const sd = $getWorkflowStaticData('global');\nlet fs = null; try { fs = require('fs'); } catch (e) { fs = null; }\nconst FILE = '/home/node/.n8n/posted.json';\nlet filePosted = []; try { filePosted = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { filePosted = []; }\nconst posted = new Set([...(sd.posted || []), ...filePosted]);\nconst dry = $env.DRY_RUN === 'true';\nconst minRating = parseFloat($env.MIN_RATING || '4.5'), minDisc = parseFloat($env.MIN_DISCOUNT || '10');\nconst minComm = parseFloat($env.MIN_COMMISSION_PCT || '5'), minSales = parseInt($env.MIN_SALES || '100');\nconst maxPrice = parseFloat($env.MAX_PRICE || '100000'), take = parseInt($env.POSTS_PER_RUN || '3');\nconst seen = new Set();\nconst ok = [];\nfor (const it of $input.all()) {\n  const p = it.json;\n  if (seen.has(p.itemId) || posted.has(p.itemId)) continue;\n  seen.add(p.itemId);\n  if (p.nota < minRating || p.desconto < minDisc || p.comissaoPct < minComm || p.vendas < minSales || p.preco > maxPrice || !p.imagem) continue;\n  p.score = p.comissaoPct * Math.log10(p.vendas + 10) * p.nota * (1 + p.desconto / 100);\n  ok.push(p);\n}\nok.sort((a, b) => b.score - a.score);\nconst pick = ok.slice(0, take);\nif (!dry) {\n  const all = [...new Set([...(sd.posted || []), ...filePosted, ...pick.map(p => p.itemId)])].slice(-2000);\n  sd.posted = all;\n  try { fs.writeFileSync(FILE, JSON.stringify(all)); } catch (e) { /* sem fs: usa so o static data */ }\n}\nreturn pick.map(p => ({ json: p }));"
       }
     },
     {
-      "id": "n39-d57de6",
+      "id": "n42-d84c9e",
       "name": "Publicar em todos os canais (06)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -79,7 +79,7 @@
       }
     },
     {
-      "id": "n40-b37933",
+      "id": "n43-ce71a6",
       "name": "Nota",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
